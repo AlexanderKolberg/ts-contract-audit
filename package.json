@@ -1,0 +1,14 @@
+{
+  "name": "ts-contract-audit",
+  "version": "0.1.0",
+  "description": "Find handwritten TypeScript shapes that overlap generated contracts, with explainable heuristic confidence scores.",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "bin": { "ts-contract-audit": "./bin/ts-contract-audit.mjs" },
+  "exports": { ".": "./src/index.mjs" },
+  "files": ["bin", "src", "README.md", "examples/basic"],
+  "repository": { "type": "git", "url": "https://github.com/AlexanderKolberg/ts-contract-audit.git" },
+  "scripts": { "test": "make test" },
+  "dependencies": { "ts-morph": "27.0.2" }
+}

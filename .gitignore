@@ -1,0 +1,7 @@
+node_modules/
+tmp/
+*.tgz
+.DS_Store
+report.json
+report.md
+test/fixture-*/

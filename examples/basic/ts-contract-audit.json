@@ -1,0 +1,6 @@
+{
+  "name": "example",
+  "tsconfig": "tsconfig.json",
+  "sources": ["*.ts"],
+  "contracts": ["generated.ts"]
+}
