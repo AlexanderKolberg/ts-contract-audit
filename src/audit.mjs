@@ -3,6 +3,7 @@ import path from 'node:path'
 import { Node, Project, SyntaxKind, ts } from 'ts-morph'
 import { compareShapes, createShapeReader, replacementFor } from './compare.mjs'
 import { confidenceFor, nameWords, overlap } from './confidence.mjs'
+import { createProvenanceReader } from './provenance.mjs'
 
 const typeDeclarations = source => [
   ...source.getInterfaces(), ...source.getTypeAliases(),
@@ -139,6 +140,7 @@ export function scanProject({ project, sources, contracts, root, name, minFields
   const declarations = sources.flatMap(handwrittenCandidates)
   const handwritten = declarations.map(candidate => readCandidate(candidate, 'handwritten')).filter(Boolean)
   const findings = []
+  const provenanceReader = createProvenanceReader({ project, root, isInvalidDeclaration })
   for (const local of handwritten) {
     const source = local.node.getSourceFile()
     const imports = source.getImportDeclarations().flatMap(declaration => declaration.getNamedImports())
@@ -151,9 +153,12 @@ export function scanProject({ project, sources, contracts, root, name, minFields
     const localWords = nameWords(local.name)
     const buckets = [...local.shape.properties.keys()].map(field => index.get(field) ?? [])
     const candidates = buckets.sort((a, b) => a.length - b.length)[0] ?? []
+    let localProvenance
     const rawMatches = candidates.flatMap(contract => {
       const comparison = compareShapes(local.shape, contract.shape)
       if (!comparison) return []
+      localProvenance ??= provenanceReader.forLocal(local)
+      const provenance = provenanceReader.forContract(localProvenance, contract.type)
       const resolvedImport = importedSymbols.has(contract.rootNode.getSymbol()?.compilerSymbol)
       const nameOverlap = overlap(localWords, nameWords(contract.rootName))
       const importOverlap = overlap(importedWords, nameWords(contract.rootName))
@@ -163,7 +168,7 @@ export function scanProject({ project, sources, contracts, root, name, minFields
         kind: comparison.kind,
         omitted: comparison.omitted,
         replacement: replacementFor(contract.expression, comparison),
-        evidence: { resolvedImport, nameOverlap, importOverlap },
+        evidence: { resolvedImport, nameOverlap, importOverlap, provenance },
         targetType: contract.type.compilerType,
       }]
     })
@@ -179,7 +184,8 @@ export function scanProject({ project, sources, contracts, root, name, minFields
       name: local.name,
       declarationKind: local.kind,
       fields: [...local.shape.properties.keys()],
-      relatedContractEvidence: top.evidence.resolvedImport || top.evidence.nameOverlap > 0 || top.evidence.importOverlap > 0,
+      relatedContractEvidence: top.evidence.provenance.callResults.length > 0 || top.evidence.provenance.requestTargets.length > 0 ||
+        top.evidence.resolvedImport || top.evidence.nameOverlap > 0 || top.evidence.importOverlap > 0,
       confidence: top.confidence,
       distinctTargets,
       totalMatches: matches.length,

@@ -20,7 +20,8 @@ function fixture(t) {
 test('help and version do not require a config', () => {
   assert.equal(run('--help').status, 0)
   assert.match(run('--help').stdout, /heuristics, not probabilities/)
-  assert.match(run('--version').stdout, /^0\.1\.0\n$/)
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
+  assert.equal(run('--version').stdout, `${manifest.version}\n`)
 })
 
 test('JSON scores are machine readable and generated source is not audited against itself', () => {
@@ -29,9 +30,11 @@ test('JSON scores are machine readable and generated source is not audited again
   assert.equal(result.stderr, '')
   const report = JSON.parse(result.stdout)
   assert.equal(report.advisory, true)
+  assert.equal(report.confidenceModel, 'heuristic-v2')
   assert.equal(report.projects[0].sourceFiles, 1)
   const findings = report.projects[0].findings
   assert.equal(findings.length, 3)
+  assert.ok(findings.every(finding => finding.confidence.model === report.confidenceModel))
   assert.equal(findings.find(finding => finding.name === 'CreateWidgetResult').confidence.level, 'high')
   assert.equal(findings.find(finding => finding.name === 'EmptyState').confidence.level, 'low')
 })
@@ -50,6 +53,8 @@ test('Markdown suggestions preserve TypeScript angle brackets', () => {
   assert.equal(result.status, 0, result.stderr)
   assert.match(result.stdout, /Omit<NonNullable<ListWidgetsData\["query"\]>, "customerId">/)
   assert.doesNotMatch(result.stdout, /Omit&lt;/)
+  assert.match(result.stdout, /from call ` createWidget `/)
+  assert.match(result.stdout, /to call ` listWidgets `/)
 })
 
 test('explicit output writes a new file and refuses to clobber it', t => {

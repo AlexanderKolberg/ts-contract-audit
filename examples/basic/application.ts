@@ -1,4 +1,4 @@
-import type { CreateWidgetResponse, ListWidgetsData } from './generated'
+import { createWidget, listWidgets } from './generated'
 
 export interface CreateWidgetResult {
   id: string
@@ -6,8 +6,9 @@ export interface CreateWidgetResult {
   createdAt: string
 }
 
-export function widgetResult(response: CreateWidgetResponse): CreateWidgetResult {
-  return response
+export async function widgetResult(): Promise<CreateWidgetResult> {
+  const { id, name, createdAt } = await createWidget()
+  return { id, name, createdAt }
 }
 
 export interface ListWidgetsRequest {
@@ -15,8 +16,8 @@ export interface ListWidgetsRequest {
   status?: 'active' | 'inactive'
 }
 
-export function widgetQuery(request: ListWidgetsRequest): ListWidgetsData['query'] {
-  return request
+export function widgetQuery(request: ListWidgetsRequest) {
+  return listWidgets({ query: { limit: request.limit, status: request.status } })
 }
 
 export interface EmptyState {

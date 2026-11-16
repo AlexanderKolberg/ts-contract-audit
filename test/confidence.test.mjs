@@ -12,9 +12,32 @@ test('a common shape without ownership evidence stays low', () => {
 
 test('a resolved named contract with several fields scores high', () => {
   const result = confidenceFor({ ...base, fieldCount: 4, resolvedImport: true, nameOverlap: 1, importOverlap: 1 })
-  assert.equal(result.score, 95)
+  assert.equal(result.score, 90)
   assert.equal(result.level, 'high')
   assert.equal(result.reasons.reduce((sum, reason) => sum + reason.points, 0), result.score)
+})
+
+test('a resolved import does not also earn lexical import points', () => {
+  const withoutWords = confidenceFor({ ...base, resolvedImport: true })
+  const withWords = confidenceFor({ ...base, resolvedImport: true, importOverlap: 4 })
+  assert.equal(withWords.score, withoutWords.score)
+  assert.ok(!withWords.reasons.some(reason => reason.code === 'import-name-overlap'))
+})
+
+test('contract flow replaces rather than stacks with import evidence', () => {
+  const provenance = { callResults: [{}], requestTargets: [{}] }
+  const flow = confidenceFor({ ...base, provenance })
+  const allEvidence = confidenceFor({ ...base, provenance, resolvedImport: true, importOverlap: 3 })
+  assert.equal(flow.score, allEvidence.score)
+  assert.equal(allEvidence.model, 'heuristic-v2')
+  assert.ok(allEvidence.reasons.some(reason => reason.code === 'contract-flow' && reason.points === 35))
+  assert.ok(!allEvidence.reasons.some(reason => reason.code === 'resolved-import' || reason.code === 'import-name-overlap'))
+})
+
+test('provenance allows small shapes with no name overlap to rank high', () => {
+  const result = confidenceFor({ ...base, fieldCount: 2, provenance: { callResults: [{}], requestTargets: [] } })
+  assert.equal(result.score, 75)
+  assert.equal(result.level, 'high')
 })
 
 test('ambiguity lowers confidence', () => {

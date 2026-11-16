@@ -10,6 +10,13 @@ export function filterReport(report, minConfidence) {
   }
 }
 
+function flows(match) {
+  return [
+    ...(match.evidence?.provenance?.callResults ?? []).map(entry => ({ ...entry, direction: 'from call' })),
+    ...(match.evidence?.provenance?.requestTargets ?? []).map(entry => ({ ...entry, direction: 'to call' })),
+  ]
+}
+
 export function renderText(report, limit = 20) {
   const lines = ['ts-contract-audit — advisory matches', 'Scores are heuristics, not probabilities or approval to replace a type.', '']
   for (const project of report.projects) {
@@ -21,6 +28,7 @@ export function renderText(report, limit = 20) {
         `    ${match.replacement}`,
         `    ${finding.confidence.reasons.map(reason => `${reason.points >= 0 ? '+' : ''}${reason.points} ${reason.code}`).join('; ')}`,
         `    ${finding.distinctTargets} distinct matching types; contract: ${match.file}:${match.line}`,
+        ...flows(match).map(flow => `    ${flow.direction} ${flow.callee} at ${flow.file}:${flow.line}`),
       )
     }
     if (project.findings.length > limit) lines.push(`  ${project.findings.length - limit} more sites; use --limit or --format json.`)
@@ -56,7 +64,8 @@ export function renderMarkdown(report, limit = 20) {
         `${code(`${finding.file}:${finding.line}`)} — ${finding.fields.length} fields; ${finding.distinctTargets} distinct matching types.`, '')
       for (const match of finding.matches.slice(0, 3)) {
         lines.push(`- **${match.confidence.score}/100, ${match.kind}:** ${code(match.replacement)}`,
-          `  - Contract: ${code(`${match.file}:${match.line}`)}`)
+          `  - Contract: ${code(`${match.file}:${match.line}`)}`,
+          ...flows(match).map(flow => `  - ${flow.direction} ${code(flow.callee)} at ${code(`${flow.file}:${flow.line}`)}`))
       }
       lines.push('', ...finding.confidence.reasons.map(reason => `- ${reason.points >= 0 ? '+' : ''}${reason.points}: ${safe(reason.message)}`), '')
     }

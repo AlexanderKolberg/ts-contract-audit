@@ -97,24 +97,36 @@ The last match is deliberately a likely false positive: UI empty-state copy and 
 
 Scores rank review candidates. **They are not calibrated probabilities.** A score of 95 does not mean a 95% chance that replacing the type is correct.
 
-The current model, `heuristic-v1`, adds:
+The current model, `heuristic-v2`, adds:
 
 - **+35** for an exact supported shape, or **+25** for a field subset.
-- **+25** if the source file imports the exact resolved contract symbol. Same-name imports from another module do not qualify; named import aliases are followed.
+- The **strongest ownership signal only**: **+35** for supported call-result/request-destination provenance; otherwise **+25** for an import of the exact resolved contract symbol; otherwise **+10** for lexical overlap with imported names. These bonuses never stack, and finding both directions of call flow still awards only 35 points.
 - **+15** for meaningful declaration-name overlap.
-- **+10** for meaningful overlap with imported names. This is lexical evidence, not data flow.
 - **+5** for three matching fields, or **+10** for four or more.
 - **+5** if only one resolved contract type matches in the configured search scope.
 
+Same-name imports from another module do not qualify as resolved imports; named import aliases are followed. Removing overlapping import bonuses means some scores decrease compared with `heuristic-v1`, even when the candidate is unchanged.
+
 Multiple distinct targets subtract three points per additional target, up to 15. Equivalent aliases resolving to the same compiler type do not inflate that ambiguity count.
 
-Scores without a resolved import or declaration-name overlap are capped at 39, or 59 if there is imported-name overlap. Two-field shapes without a resolved import are capped at 69. All scores are capped at 95.
+Scores without call provenance, a resolved import, or declaration-name overlap are capped at 39, or 59 if there is imported-name overlap. Two-field shapes without call provenance or a resolved import are capped at 69. All scores are capped at 95.
 
 - **High:** 75–95
 - **Medium:** 50–74
 - **Low:** below 50
 
-Text, JSON, and Markdown include the score reasons. JSON also includes alternatives, locations, exclusions, diagnostics, and the confidence-model version. Changing contract scope can change ambiguity and scores.
+Text, JSON, and Markdown include the score reasons and supporting call locations. Call labels use identifier/property names; complex receivers and computed keys are replaced with placeholders rather than copying expressions or literal arguments. JSON also includes alternatives, exclusions, diagnostics, and the confidence-model version. Changing contract scope can change ambiguity and scores.
+
+### Bounded call provenance
+
+The scanner checks usage in the declaration's source file, using resolved compiler-type identity rather than structural assignability or function names:
+
+- **Call results:** an explicitly annotated return or const initializer comes from a call returning the candidate contract, including awaited results. Const aliases and same-call destructuring/reconstruction are followed within a small depth limit. Reconstructed fields must keep their original names; all return branches must agree. Defaults, assertions, mixed calls, mutable aliases, and detected writes (including destructuring assignment targets) do not establish this evidence.
+- **Request destinations:** a local value is passed directly to a call, or all its fields are forwarded under their original names from one receiver into an object argument. The argument's contextual type must resolve to the candidate contract. Nested arguments, optional access, nullish defaults, and conditional omission are supported. Partial forwarding, assertions, renamed fields, and calls with diagnostics do not establish this evidence.
+
+A correctly typed wrapper can provide this evidence too; the called function itself need not be generated. The signal identifies the contract used by the call, not its runtime implementation. This helps distinguish a regular query from a structurally compatible admin query without adding domain-specific naming rules.
+
+This is not an interprocedural data-flow or mutation analysis. Cross-file usages, arbitrary transformations, indirect alias mutations, helper-mediated mutations, and complex control flow are not proven. No provenance means no extra bonus, not that the types are unrelated. Even a high score still needs owner/consumer review.
 
 ## Comparison boundaries
 
@@ -157,6 +169,6 @@ make pack
 make smoke
 ```
 
-`make check` checks JavaScript syntax and runs the regression suite. Tests cover comparison constraints, numeric keys, nested contracts, function-local declarations, symlinked SDKs, resolved imports, confidence, config validation, and CLI behavior. `make smoke` installs the packed archive into an ignored temporary directory and invokes its CLI.
+`make check` checks JavaScript syntax and runs the regression suite. Tests cover comparison constraints, numeric keys, nested contracts, function-local declarations, symlinked SDKs, resolved imports, confidence, bounded call provenance, config validation, and CLI behavior. `make smoke` installs the packed archive into an ignored temporary directory and invokes its CLI.
 
 The small modules under `src/` separate comparison, discovery, scoring, configuration, and reporting. Programmatic exports are experimental; the CLI and JSON report schema are the primary interface. When using the low-level comparator, read both shapes with the same reader and TypeScript project.

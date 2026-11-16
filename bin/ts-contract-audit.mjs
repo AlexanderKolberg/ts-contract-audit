@@ -5,6 +5,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 import { loadConfig } from '../src/config.mjs'
+import { CONFIDENCE_MODEL } from '../src/confidence.mjs'
 import { filterReport, renderMarkdown, renderText } from '../src/report.mjs'
 
 const help = `Usage: ts-contract-audit [options]
@@ -73,7 +74,7 @@ function main() {
   })
   const report = filterReport({
     schemaVersion: 1, toolVersion: packageInfo.version,
-    confidenceModel: 'heuristic-v1', advisory: true,
+    confidenceModel: CONFIDENCE_MODEL, advisory: true,
     generatedAt: new Date().toISOString(), elapsedSeconds: (Date.now() - started) / 1000,
     root: config.root, configuration: { ...config, projects: selected }, projects,
   }, minConfidence)
